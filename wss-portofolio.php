@@ -611,6 +611,7 @@ function wssp_shortcode_order_whatsapp( $atts = array() ) {
     );
     return $html;
 }
+/**
  * Bangun URL order WhatsApp untuk post tertentu
  */
 function wssp_get_whatsapp_order_url( $post_id ) {

@@ -4,6 +4,7 @@
  * Description: Import portofolio dan kategori (jenis-web) dari API WSS ke situs WordPress lokal.
  * Version: 1.0.0
  * Author: Nur Dita Damayanti
+ * URI: https://github.com/dhytalu/websweet-portofolio
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

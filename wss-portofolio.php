@@ -21,6 +21,9 @@ define( 'WSSP_PER_PAGE_OPTION', 'wssp_per_page' );
 define( 'WSSP_CACHE_TTL_OPTION', 'wssp_cache_ttl' );
 define( 'WSSP_CACHE_INDEX_OPTION', 'wssp_cache_index' );
 define( 'WSSP_REMOTE_META_KEY', '_wssp_remote_id' );
+// WhatsApp settings options
+define( 'WSSP_WHATSAPP_NUMBER_OPTION', 'wssp_whatsapp_number' );
+define( 'WSSP_WHATSAPP_TEMPLATE_OPTION', 'wssp_whatsapp_template' );
 
 require_once WSSP_PLUGIN_PATH . 'includes/class-wss-client.php';
 require_once WSSP_PLUGIN_PATH . 'includes/class-wss-importer.php';
@@ -283,6 +286,18 @@ function wssp_handle_post_actions() {
             if ( $cache_ttl < 0 ) { $cache_ttl = 0; }
             update_option( WSSP_CACHE_TTL_OPTION, $cache_ttl );
 
+            // Simpan pengaturan WhatsApp bila ada pada form
+            if ( isset( $_POST['wssp_whatsapp_number'] ) ) {
+                $wa_number = sanitize_text_field( wp_unslash( $_POST['wssp_whatsapp_number'] ) );
+                // wa.me butuh angka saja, tanpa '+' atau spasi
+                $wa_number = preg_replace( '/[^0-9]/', '', $wa_number );
+                update_option( WSSP_WHATSAPP_NUMBER_OPTION, $wa_number );
+            }
+            if ( isset( $_POST['wssp_whatsapp_template'] ) ) {
+                $wa_template = wp_kses_post( wp_unslash( $_POST['wssp_whatsapp_template'] ) );
+                update_option( WSSP_WHATSAPP_TEMPLATE_OPTION, $wa_template );
+            }
+
             add_settings_error( 'wssp_messages', 'wssp_saved', 'Pengaturan disimpan', 'updated' );
         }
 
@@ -360,6 +375,8 @@ function wssp_admin_page_render() {
     $saved_key = get_option( WSSP_OPTION_KEY, '' );
     $saved_per_page = intval( get_option( WSSP_PER_PAGE_OPTION, 12 ) );
     $saved_cache_ttl = intval( get_option( WSSP_CACHE_TTL_OPTION, 900 ) );
+    $saved_wa_number = get_option( WSSP_WHATSAPP_NUMBER_OPTION, '' );
+    $saved_wa_template = get_option( WSSP_WHATSAPP_TEMPLATE_OPTION, '' );
     ?>
     <div class="wrap">
         <h1>WSS Portofolio Importer</h1>
@@ -390,8 +407,25 @@ function wssp_admin_page_render() {
                         <p class="description">Lama cache response API disimpan. Set 0 untuk menonaktifkan (misal 900 = 15 menit).</p>
                     </td>
                 </tr>
+                <tr>
+                    <th colspan="2"><h3 style="margin:0;">WhatsApp</h3></th>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="wssp_whatsapp_number">Nomor WhatsApp</label></th>
+                    <td>
+                        <input name="wssp_whatsapp_number" id="wssp_whatsapp_number" type="text" class="regular-text" value="<?php echo esc_attr( $saved_wa_number ); ?>" />
+                        <p class="description">Gunakan format internasional tanpa '+' atau spasi. Contoh: 6281234567890.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="wssp_whatsapp_template">Template Pesan</label></th>
+                    <td>
+                        <textarea name="wssp_whatsapp_template" id="wssp_whatsapp_template" class="large-text" rows="4"><?php echo esc_textarea( $saved_wa_template ); ?></textarea>
+                        <p class="description">Placeholder: {title}, {permalink}, {live_preview}. Biarkan kosong untuk default.</p>
+                    </td>
+                </tr>
             </table>
-            <?php submit_button( 'Simpan Pengaturan' ); ?>
+            <?php submit_button( 'Simpan' ); ?>
         </form>
 
         <h2>Import</h2>
@@ -459,3 +493,40 @@ function wssp_archive_template( $archive ) {
     return $archive;
 }
 add_filter( 'archive_template', 'wssp_archive_template' );
+
+/**
+ * Enqueue Bootstrap CSS pada frontend untuk halaman Portofolio
+ */
+function wssp_frontend_enqueue() {
+    if ( is_singular( 'portofolio' ) || is_post_type_archive( 'portofolio' ) ) {
+        wp_enqueue_style(
+            'wssp-bootstrap',
+            'https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css',
+            array(),
+            '5.3.2'
+        );
+    }
+}
+add_action( 'wp_enqueue_scripts', 'wssp_frontend_enqueue' );
+
+/**
+ * Bangun URL order WhatsApp untuk post tertentu
+ */
+function wssp_get_whatsapp_order_url( $post_id ) {
+    $number = get_option( WSSP_WHATSAPP_NUMBER_OPTION, '' );
+    if ( empty( $number ) ) { return ''; }
+    $title = get_the_title( $post_id );
+    $permalink = get_permalink( $post_id );
+    $live = get_post_meta( $post_id, '_wssp_url_live_preview', true );
+    $template = get_option( WSSP_WHATSAPP_TEMPLATE_OPTION, '' );
+    if ( empty( $template ) ) {
+        $template = "Halo, saya tertarik dengan portofolio {title}.\nLink: {permalink}\nPreview: {live_preview}";
+    }
+    $message = str_replace(
+        array('{title}', '{permalink}', '{live_preview}'),
+        array( $title, $permalink, $live ?: '' ),
+        $template
+    );
+    $url = 'https://wa.me/' . rawurlencode( $number ) . '?text=' . rawurlencode( $message );
+    return $url;
+}

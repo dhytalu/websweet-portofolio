@@ -23,10 +23,14 @@ get_header();
           </a>
           <div class="entry-excerpt"><?php the_excerpt(); ?></div>
           <div class="wssp-actions">
-            <a class="button" href="<?php the_permalink(); ?>">Detail</a>
+            <a class="btn btn-outline-primary btn-sm" href="<?php the_permalink(); ?>">Detail</a>
             <?php $live = get_post_meta( get_the_ID(), '_wssp_url_live_preview', true );
             if ( $live ) : ?>
-              <a class="button button-primary" href="<?php echo esc_url( $live ); ?>" target="_blank" rel="noopener">Live Preview</a>
+              <a class="btn btn-primary btn-sm" href="<?php echo esc_url( $live ); ?>" target="_blank" rel="noopener">Live Preview</a>
+            <?php endif; ?>
+            <?php $wa = function_exists('wssp_get_whatsapp_order_url') ? wssp_get_whatsapp_order_url( get_the_ID() ) : '';
+            if ( ! empty( $wa ) ) : ?>
+              <a class="btn btn-success btn-sm" href="<?php echo esc_url( $wa ); ?>" target="_blank" rel="noopener"><i class="fa fa-whatsapp pe-2"> Order</a>
             <?php endif; ?>
           </div>
         </article>

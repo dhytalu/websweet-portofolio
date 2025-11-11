@@ -510,6 +510,42 @@ function wssp_frontend_enqueue() {
 add_action( 'wp_enqueue_scripts', 'wssp_frontend_enqueue' );
 
 /**
+ * Endpoint preview: /portofolio/{slug}/live/
+ */
+function wssp_register_live_endpoint() {
+    add_rewrite_endpoint( 'live', EP_PERMALINK );
+}
+add_action( 'init', 'wssp_register_live_endpoint' );
+
+function wssp_activate() {
+    wssp_register_live_endpoint();
+    flush_rewrite_rules();
+}
+register_activation_hook( __FILE__, 'wssp_activate' );
+
+function wssp_deactivate() {
+    flush_rewrite_rules();
+}
+register_deactivation_hook( __FILE__, 'wssp_deactivate' );
+
+/**
+ * Template loader untuk halaman preview embed
+ */
+function wssp_live_preview_template_loader( $template ) {
+    if ( is_singular( 'portofolio' ) ) {
+        $live_endpoint = get_query_var( 'live', '' );
+        if ( $live_endpoint !== '' ) {
+            $plugin_template = plugin_dir_path( __FILE__ ) . 'templates/preview-portofolio.php';
+            if ( file_exists( $plugin_template ) ) {
+                return $plugin_template;
+            }
+        }
+    }
+    return $template;
+}
+add_filter( 'template_include', 'wssp_live_preview_template_loader' );
+
+/**
  * Shortcodes: Live Preview & Order WhatsApp
  */
 function wssp_register_shortcodes() {
@@ -526,6 +562,7 @@ function wssp_shortcode_live_preview( $atts = array() ) {
         'target'  => '_blank',
         'icon'    => '1',
         'icon_class' => 'fa fa-eye me-2',
+        'embed'   => '1',
     ), $atts );
     $post_id = intval( $atts['post_id'] );
     if ( ! $post_id ) { return ''; }
@@ -533,10 +570,14 @@ function wssp_shortcode_live_preview( $atts = array() ) {
     if ( empty( $url ) ) { return ''; }
     $classes = trim( 'btn btn-primary ' . ( $atts['class'] ? $atts['class'] : '' ) );
     $icon_html = ( $atts['icon'] && $atts['icon'] !== '0' ) ? '<i class="' . esc_attr( $atts['icon_class'] ) . '"></i>' : '';
+    // Jika embed=1, arahkan ke endpoint internal /live/, bukan ke URL eksternal langsung
+    $href = ($atts['embed'] && $atts['embed'] !== '0')
+      ? trailingslashit( get_permalink( $post_id ) ) . 'live/'
+      : $url;
     $html = sprintf(
         '<a class="%s" href="%s" target="%s" rel="noopener">%s%s</a>',
         esc_attr( $classes ),
-        esc_url( $url ),
+        esc_url( $href ),
         esc_attr( $atts['target'] ),
         $icon_html,
         esc_html( $atts['text'] )

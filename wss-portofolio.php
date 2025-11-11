@@ -434,3 +434,28 @@ function wssp_admin_page_render() {
     </div>
     <?php
 }
+/**
+ * Load plugin-provided templates for CPT 'portofolio'
+ */
+function wssp_single_template( $single ) {
+    global $post;
+    if ( $post && $post->post_type === 'portofolio' ) {
+        $tpl = WSSP_PLUGIN_PATH . 'templates/single-portofolio.php';
+        if ( file_exists( $tpl ) ) {
+            return $tpl;
+        }
+    }
+    return $single;
+}
+add_filter( 'single_template', 'wssp_single_template' );
+
+function wssp_archive_template( $archive ) {
+    if ( is_post_type_archive( 'portofolio' ) ) {
+        $tpl = WSSP_PLUGIN_PATH . 'templates/archive-portofolio.php';
+        if ( file_exists( $tpl ) ) {
+            return $tpl;
+        }
+    }
+    return $archive;
+}
+add_filter( 'archive_template', 'wssp_archive_template' );

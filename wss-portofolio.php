@@ -50,6 +50,8 @@ function wssp_register_cpt() {
         'rewrite'            => array( 'slug' => 'portofolio' ),
         'supports'           => array( 'title', 'editor', 'excerpt', 'thumbnail' ),
         'show_in_rest'       => true,
+        'menu_icon'          => 'dashicons-portfolio',
+        'menu_position'      => 5,
     );
 
     register_post_type( 'portofolio', $args );
@@ -89,7 +91,8 @@ add_action( 'init', 'wssp_register_taxonomy' );
  * Admin menu: Tools -> WSS Portofolio
  */
 function wssp_admin_menu() {
-    add_management_page(
+    add_submenu_page(
+        'edit.php?post_type=portofolio',
         'WSS Portofolio',
         'WSS Portofolio',
         'manage_options',
@@ -136,10 +139,37 @@ function wssp_handle_post_actions() {
 
         if ( 'import_posts' === $action ) {
             $last_sync = get_option( WSSP_LAST_SYNC_OPTION, '' );
+            $force_full = ! empty( $_POST['wssp_force_full'] );
+            if ( $force_full ) {
+                $last_sync = '';
+            }
             $posts = $client->fetch_all_portofolio( $last_sync ?: null );
+
+            // Jika kosong tapi ada last_sync, coba fallback full import
+            $fallback_used = false;
+            if ( empty( $posts ) && ! empty( $last_sync ) ) {
+                $posts = $client->fetch_all_portofolio( null );
+                $fallback_used = true;
+            }
+
+            // Jika error, tampilkan notice
+            $last_error = method_exists( $client, 'get_last_error' ) ? $client->get_last_error() : null;
+            if ( $last_error ) {
+                add_settings_error( 'wssp_messages', 'wssp_import_error', 'Gagal mengambil data portofolio: ' . esc_html( $last_error ), 'error' );
+            }
+
             $result = $importer->import_posts( $posts );
-            update_option( WSSP_LAST_SYNC_OPTION, gmdate( 'c' ) );
-            add_settings_error( 'wssp_messages', 'wssp_import_posts', sprintf( 'Post diimpor: %d dibuat, %d diperbarui', $result['created'], $result['updated'] ), 'updated' );
+
+            // Update last_sync hanya jika ada perubahan
+            if ( ( $result['created'] + $result['updated'] ) > 0 ) {
+                update_option( WSSP_LAST_SYNC_OPTION, gmdate( 'c' ) );
+            }
+
+            $message = sprintf( 'Post diimpor: %d dibuat, %d diperbarui', $result['created'], $result['updated'] );
+            if ( $fallback_used ) {
+                $message .= ' (Fallback full import karena tidak ada perubahan setelah last_sync)';
+            }
+            add_settings_error( 'wssp_messages', 'wssp_import_posts', $message, 'updated' );
         }
 
         if ( 'clear_cache' === $action ) {
@@ -220,6 +250,12 @@ function wssp_admin_page_render() {
             <?php wp_nonce_field( 'wssp_nonce_action', 'wssp_nonce_field' ); ?>
             <input type="hidden" name="wssp_action" value="import_posts" />
             <?php submit_button( 'Import Portofolio', 'primary' ); ?>
+            <p>
+                <label>
+                    <input type="checkbox" name="wssp_force_full" value="1" />
+                    Full import (abaikan last_sync)
+                </label>
+            </p>
             <p class="description">Import incremental berdasarkan perubahan terbaru. Jika pertama kali, semua post akan diambil.</p>
         </form>
 

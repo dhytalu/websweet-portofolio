@@ -10,7 +10,21 @@ class WSSP_Importer {
         $updated = 0;
         foreach ( $terms as $t ) {
             $slug = isset( $t['slug'] ) ? sanitize_title( $t['slug'] ) : '';
-            $name = isset( $t['name'] ) ? sanitize_text_field( $t['name'] ) : '';
+            // Ambil nama dari API; jika tidak ada, coba variasi lain, terakhir rapikan dari slug
+            $name = '';
+            if ( isset( $t['category'] ) ) {
+                if ( is_array( $t['category'] ) ) {
+                    // Antisipasi format mirip post title { rendered: "..." }
+                    $name = isset( $t['category']['rendered'] ) ? wp_strip_all_tags( $t['category']['rendered'] ) : '';
+                } else {
+                    $name = sanitize_text_field( $t['category'] );
+                }
+            } elseif ( isset( $t['label'] ) ) {
+                $name = sanitize_text_field( $t['label'] );
+            }
+            if ( empty( $name ) && ! empty( $slug ) ) {
+                $name = $this->prettify_slug( $slug );
+            }
             $desc = isset( $t['description'] ) ? wp_kses_post( $t['description'] ) : '';
             $remote_id = isset( $t['id'] ) ? intval( $t['id'] ) : 0;
 
@@ -21,7 +35,7 @@ class WSSP_Importer {
             $existing = get_term_by( 'slug', $slug, 'jenis-web' );
             if ( $existing && isset( $existing->term_id ) ) {
                 wp_update_term( $existing->term_id, 'jenis-web', array(
-                    'name'        => $name ?: $existing->name,
+                    'category'        => ! empty( $name ) ? $name : $existing->name,
                     'description' => $desc,
                 ) );
                 if ( $remote_id ) {
@@ -42,6 +56,13 @@ class WSSP_Importer {
             }
         }
         return array( 'created' => $created, 'updated' => $updated );
+    }
+
+    private function prettify_slug( $slug ) {
+        $slug = str_replace( array('-', '_'), ' ', $slug );
+        $slug = preg_replace( '/\s+/', ' ', $slug );
+        $slug = trim( $slug );
+        return ucwords( $slug );
     }
 
     public function import_posts( $posts ) {

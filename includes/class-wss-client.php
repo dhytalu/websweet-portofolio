@@ -6,6 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class WSSP_Client {
     private $base;
     private $access_key;
+    private $last_error = null;
 
     public function __construct() {
         $this->base = WSSP_API_BASE;
@@ -14,6 +15,7 @@ class WSSP_Client {
 
     private function request( $endpoint, $query = array() ) {
         if ( empty( $this->access_key ) ) {
+            $this->last_error = 'Access key kosong';
             return array( 'items' => array(), 'headers' => array(), 'error' => 'Access key kosong' );
         }
 
@@ -36,6 +38,7 @@ class WSSP_Client {
         );
         $res = wp_remote_get( $url, $args );
         if ( is_wp_error( $res ) ) {
+            $this->last_error = $res->get_error_message();
             return array( 'items' => array(), 'headers' => array(), 'error' => $res->get_error_message() );
         }
         $code = wp_remote_retrieve_response_code( $res );
@@ -43,12 +46,14 @@ class WSSP_Client {
         $headers = wp_remote_retrieve_headers( $res );
 
         if ( $code !== 200 ) {
+            $this->last_error = 'HTTP ' . $code;
             return array( 'items' => array(), 'headers' => $headers, 'error' => 'HTTP ' . $code );
         }
         $items = json_decode( $body, true );
         if ( ! is_array( $items ) ) {
             $items = array();
         }
+        $this->last_error = null;
         if ( $ttl > 0 ) {
             set_transient( $cache_key, $items, $ttl );
             // Simpan index cache key untuk memudahkan clear cache
@@ -124,6 +129,10 @@ class WSSP_Client {
             $page++;
         } while ( ! empty( $items ) && count( $items ) === 100 );
         return $all;
+    }
+
+    public function get_last_error() {
+        return $this->last_error;
     }
 
     /**

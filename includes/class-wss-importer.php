@@ -174,13 +174,7 @@ class WSSP_Importer {
             if ( isset( $p['last_modified'] ) && is_string( $p['last_modified'] ) ) {
                 update_post_meta( $post_id, '_wssp_remote_last_modified', sanitize_text_field( $p['last_modified'] ) );
             }
-            if ( isset( $p['thumbnail_url'] ) && is_string( $p['thumbnail_url'] ) ) {
-                update_post_meta( $post_id, '_wssp_thumbnail_url', esc_url_raw( trim( $p['thumbnail_url'] ) ) );
-            }
-            if ( isset( $p['screenshot'] ) && is_string( $p['screenshot'] ) ) {
-                $clean_screenshot = trim( $p['screenshot'], " \t\n\r\0\x0B`" );
-                update_post_meta( $post_id, '_wssp_screenshot_url', esc_url_raw( $clean_screenshot ) );
-            }
+            // Tidak perlu menyimpan thumbnail_url atau screenshot sebagai meta terpisah
 
             // Update progres
             $processed++;

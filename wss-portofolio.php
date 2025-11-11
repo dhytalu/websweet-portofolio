@@ -243,28 +243,12 @@ add_action( 'add_meta_boxes', 'wssp_add_meta_box' );
 function wssp_render_meta_box( $post ) {
     $remote_id = get_post_meta( $post->ID, WSSP_REMOTE_META_KEY, true );
     $live_url  = get_post_meta( $post->ID, '_wssp_url_live_preview', true );
-    $thumb_url = get_post_meta( $post->ID, '_wssp_thumbnail_url', true );
-    $shot_url  = get_post_meta( $post->ID, '_wssp_screenshot_url', true );
     $modified  = get_post_meta( $post->ID, '_wssp_remote_last_modified', true );
     echo '<div class="wssp-meta-box">';
     echo '<p><strong>Remote ID:</strong> ' . esc_html( $remote_id ?: '-' ) . '</p>';
     echo '<p><strong>Live Preview:</strong><br/>';
     if ( $live_url ) {
         echo '<a href="' . esc_url( $live_url ) . '" target="_blank" rel="noopener">' . esc_html( $live_url ) . '</a>';
-    } else {
-        echo '-';
-    }
-    echo '</p>';
-    echo '<p><strong>Screenshot URL:</strong><br/>';
-    if ( $shot_url ) {
-        echo '<a href="' . esc_url( $shot_url ) . '" target="_blank" rel="noopener">' . esc_html( $shot_url ) . '</a>';
-    } else {
-        echo '-';
-    }
-    echo '</p>';
-    echo '<p><strong>Thumbnail URL:</strong><br/>';
-    if ( $thumb_url ) {
-        echo '<a href="' . esc_url( $thumb_url ) . '" target="_blank" rel="noopener">' . esc_html( $thumb_url ) . '</a>';
     } else {
         echo '-';
     }

@@ -44,8 +44,36 @@ Plugin WordPress untuk mengimpor Portofolio dan Kategori (taxonomy `jenis-web`) 
 4. Progress impor:
    - Overlay akan muncul dengan bar & label persentase, diperbarui via polling AJAX.
 5. Frontend:
-   - Arsip: `/portofolio/` menampilkan daftar portofolio.
-   - Single: klik salah satu item untuk melihat layout dua kolom dengan tombol Live Preview & Order via WhatsApp.
+  - Arsip: `/portofolio/` menampilkan daftar portofolio.
+  - Single: klik salah satu item untuk melihat layout dua kolom dengan tombol Live Preview & Order via WhatsApp.
+
+### Shortcodes
+
+- `wssp_live_preview`
+  - Menampilkan tombol Live Preview berdasarkan meta `_wssp_url_live_preview`.
+  - Atribut:
+    - `post_id` (opsional): ID post target. Default: post saat ini.
+    - `text` (opsional): label tombol. Default: `Live Preview`.
+    - `class` (opsional): kelas tambahan Bootstrap. Ditambahkan ke `btn btn-primary`.
+    - `target` (opsional): target link. Default: `_blank`.
+    - `icon` (opsional): `1`/`0` untuk tampilkan ikon Font Awesome. Default: `1`.
+    - `icon_class` (opsional): kelas ikon. Default: `fa fa-eye me-2`.
+  - Contoh:
+    - `[wssp_live_preview class="btn-sm"]`
+    - `[wssp_live_preview post_id="123" text="Lihat Demo" icon="1" icon_class="fa fa-eye me-1"]`
+
+- `wssp_order_whatsapp`
+  - Menampilkan tombol Order via WhatsApp menggunakan helper `wssp_get_whatsapp_order_url`.
+  - Atribut:
+    - `post_id` (opsional): ID post target. Default: post saat ini.
+    - `text` (opsional): label tombol. Default: `Order`.
+    - `class` (opsional): kelas tambahan Bootstrap. Ditambahkan ke `btn btn-success`.
+    - `target` (opsional): target link. Default: `_blank`.
+    - `icon` (opsional): `1`/`0` untuk tampilkan ikon Font Awesome. Default: `1`.
+    - `icon_class` (opsional): kelas ikon. Default: `fa fa-whatsapp me-2`.
+  - Contoh:
+    - `[wssp_order_whatsapp class="btn-sm" text="Order via WhatsApp"]`
+    - `[wssp_order_whatsapp post_id="123" icon="0"]`
 
 ## Detail Teknis
 

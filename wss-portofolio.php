@@ -80,6 +80,8 @@ function wssp_register_taxonomy() {
         'show_ui'           => true,
         'show_in_rest'      => true,
         'query_var'         => true,
+        'show_admin_column' => true,
+        'show_in_quick_edit' => true,
         'rewrite'           => array( 'slug' => 'jenis-web' ),
     );
 
@@ -101,6 +103,175 @@ function wssp_admin_menu() {
     );
 }
 add_action( 'admin_menu', 'wssp_admin_menu' );
+
+/**
+ * Enqueue admin assets for progress overlay on our page
+ */
+function wssp_admin_enqueue( $hook ) {
+    // Only load on our plugin page
+    if ( isset( $_GET['page'] ) && $_GET['page'] === 'wssp-portofolio' ) {
+        $version = defined( 'WSSP_PLUGIN_VERSION' ) ? WSSP_PLUGIN_VERSION : '1.0.0';
+        wp_enqueue_style( 'wssp-admin', plugins_url( 'assets/admin.css', __FILE__ ), array(), $version );
+        wp_enqueue_script( 'wssp-admin', plugins_url( 'assets/admin.js', __FILE__ ), array( 'jquery' ), $version, true );
+    }
+}
+add_action( 'admin_enqueue_scripts', 'wssp_admin_enqueue' );
+
+/**
+ * Progress transient key
+ */
+define( 'WSSP_PROGRESS_TRANSIENT', 'wssp_import_progress_state' );
+
+function wssp_progress_reset() {
+    delete_transient( WSSP_PROGRESS_TRANSIENT );
+}
+
+function wssp_progress_update( $percent, $processed, $total, $message = '' ) {
+    $percent = max( 0, min( 100, intval( $percent ) ) );
+    set_transient( WSSP_PROGRESS_TRANSIENT, array(
+        'status'    => $percent >= 100 ? 'done' : 'running',
+        'percent'   => $percent,
+        'processed' => intval( $processed ),
+        'total'     => intval( $total ),
+        'message'   => sanitize_text_field( $message ),
+    ), 300 );
+}
+
+function wssp_ajax_get_progress() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+    }
+    $state = get_transient( WSSP_PROGRESS_TRANSIENT );
+    if ( ! is_array( $state ) ) {
+        $state = array( 'status' => 'idle', 'percent' => 0, 'processed' => 0, 'total' => 0, 'message' => '' );
+    }
+    wp_send_json_success( $state );
+}
+add_action( 'wp_ajax_wssp_get_progress', 'wssp_ajax_get_progress' );
+
+function wssp_ajax_import_posts() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+    }
+    check_ajax_referer( 'wssp_nonce_action', 'wssp_nonce_field' );
+
+    wssp_progress_reset();
+
+    $client = new WSSP_Client();
+    $importer = new WSSP_Importer();
+
+    $last_sync = get_option( WSSP_LAST_SYNC_OPTION, '' );
+    $force_full = ! empty( $_POST['wssp_force_full'] );
+    if ( $force_full ) {
+        $last_sync = '';
+    }
+    $posts = $client->fetch_all_portofolio( $last_sync ?: null );
+    $fallback_used = false;
+    if ( empty( $posts ) && ! empty( $last_sync ) ) {
+        $posts = $client->fetch_all_portofolio( null );
+        $fallback_used = true;
+    }
+    $last_error = method_exists( $client, 'get_last_error' ) ? $client->get_last_error() : null;
+    if ( $last_error ) {
+        // Set progres sebagai error
+        set_transient( WSSP_PROGRESS_TRANSIENT, array(
+            'status'    => 'error',
+            'percent'   => 0,
+            'processed' => 0,
+            'total'     => 0,
+            'message'   => 'Gagal mengambil data: ' . $last_error,
+        ), 60 );
+        wp_send_json_error( array( 'message' => 'Gagal mengambil data portofolio: ' . $last_error ) );
+    }
+
+    // Jalankan import; importer akan memperbarui progres selama loop
+    $result = $importer->import_posts( $posts );
+    if ( ( $result['created'] + $result['updated'] ) > 0 ) {
+        update_option( WSSP_LAST_SYNC_OPTION, gmdate( 'c' ) );
+    }
+
+    // Pastikan progres berakhir di 100%
+    wssp_progress_update( 100, count( $posts ), count( $posts ), 'Import selesai' );
+
+    $message = sprintf( 'Post diimpor: %d dibuat, %d diperbarui', $result['created'], $result['updated'] );
+    if ( $fallback_used ) {
+        $message .= ' (Fallback full import karena tidak ada perubahan setelah last_sync)';
+    }
+    wp_send_json_success( array( 'message' => $message, 'result' => $result ) );
+}
+add_action( 'wp_ajax_wssp_import_posts_ajax', 'wssp_ajax_import_posts' );
+
+function wssp_ajax_import_categories() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+    }
+    check_ajax_referer( 'wssp_nonce_action', 'wssp_nonce_field' );
+
+    wssp_progress_reset();
+    wssp_progress_update( 0, 0, 0, 'Mengimpor kategori...' );
+
+    $client = new WSSP_Client();
+    $importer = new WSSP_Importer();
+    $terms = $client->fetch_all_terms();
+    if ( method_exists( $client, 'get_last_error' ) && $client->get_last_error() ) {
+        set_transient( WSSP_PROGRESS_TRANSIENT, array(
+            'status'    => 'error',
+            'percent'   => 0,
+            'processed' => 0,
+            'total'     => 0,
+            'message'   => 'Gagal mengambil kategori: ' . $client->get_last_error(),
+        ), 60 );
+        wp_send_json_error( array( 'message' => 'Gagal mengambil kategori: ' . $client->get_last_error() ) );
+    }
+
+    $result = $importer->import_categories( $terms );
+    wssp_progress_update( 100, is_array( $terms ) ? count( $terms ) : 0, is_array( $terms ) ? count( $terms ) : 0, 'Import kategori selesai' );
+
+    $message = sprintf( 'Kategori diimpor: %d dibuat, %d diperbarui', $result['created'], $result['updated'] );
+    wp_send_json_success( array( 'message' => $message, 'result' => $result ) );
+}
+add_action( 'wp_ajax_wssp_import_categories_ajax', 'wssp_ajax_import_categories' );
+
+/**
+ * Tampilkan custom meta di layar edit Portofolio
+ */
+function wssp_add_meta_box() {
+    add_meta_box( 'wssp_meta', 'WSS Portofolio Meta', 'wssp_render_meta_box', 'portofolio', 'side', 'default' );
+}
+add_action( 'add_meta_boxes', 'wssp_add_meta_box' );
+
+function wssp_render_meta_box( $post ) {
+    $remote_id = get_post_meta( $post->ID, WSSP_REMOTE_META_KEY, true );
+    $live_url  = get_post_meta( $post->ID, '_wssp_url_live_preview', true );
+    $thumb_url = get_post_meta( $post->ID, '_wssp_thumbnail_url', true );
+    $shot_url  = get_post_meta( $post->ID, '_wssp_screenshot_url', true );
+    $modified  = get_post_meta( $post->ID, '_wssp_remote_last_modified', true );
+    echo '<div class="wssp-meta-box">';
+    echo '<p><strong>Remote ID:</strong> ' . esc_html( $remote_id ?: '-' ) . '</p>';
+    echo '<p><strong>Live Preview:</strong><br/>';
+    if ( $live_url ) {
+        echo '<a href="' . esc_url( $live_url ) . '" target="_blank" rel="noopener">' . esc_html( $live_url ) . '</a>';
+    } else {
+        echo '-';
+    }
+    echo '</p>';
+    echo '<p><strong>Screenshot URL:</strong><br/>';
+    if ( $shot_url ) {
+        echo '<a href="' . esc_url( $shot_url ) . '" target="_blank" rel="noopener">' . esc_html( $shot_url ) . '</a>';
+    } else {
+        echo '-';
+    }
+    echo '</p>';
+    echo '<p><strong>Thumbnail URL:</strong><br/>';
+    if ( $thumb_url ) {
+        echo '<a href="' . esc_url( $thumb_url ) . '" target="_blank" rel="noopener">' . esc_html( $thumb_url ) . '</a>';
+    } else {
+        echo '-';
+    }
+    echo '</p>';
+    echo '<p><strong>Remote Last Modified:</strong><br/>' . esc_html( $modified ?: '-' ) . '</p>';
+    echo '</div>';
+}
 
 /**
  * Save settings and handle import actions
@@ -266,6 +437,16 @@ function wssp_admin_page_render() {
             <?php submit_button( 'Clear Cache', 'secondary' ); ?>
             <p class="description">Menghapus semua cache API yang disimpan untuk menghemat request saat debugging atau setelah perubahan pengaturan.</p>
         </form>
+
+        <div id="wssp-overlay" aria-hidden="true">
+            <div class="wssp-overlay__content">
+                <div class="wssp-progress">
+                    <div class="wssp-progress__bar"><span class="wssp-progress__fill" style="width:0%"></span></div>
+                    <div class="wssp-progress__label">0%</div>
+                </div>
+                <div class="wssp-overlay__text">Menyiapkan import...</div>
+            </div>
+        </div>
     </div>
     <?php
 }

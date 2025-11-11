@@ -8,6 +8,11 @@ class WSSP_Importer {
     public function import_categories( $terms ) {
         $created = 0;
         $updated = 0;
+        $total   = is_array( $terms ) ? count( $terms ) : 0;
+        $processed = 0;
+        if ( function_exists( 'wssp_progress_update' ) ) {
+            wssp_progress_update( 0, 0, $total, 'Mengimpor kategori...' );
+        }
         foreach ( $terms as $t ) {
             $slug = isset( $t['slug'] ) ? sanitize_title( $t['slug'] ) : '';
             // Ambil nama dari API; jika tidak ada, coba variasi lain, terakhir rapikan dari slug
@@ -54,6 +59,12 @@ class WSSP_Importer {
                     $created++;
                 }
             }
+            // Update progres
+            $processed++;
+            if ( $total > 0 && function_exists( 'wssp_progress_update' ) ) {
+                $percent = (int) floor( ( $processed / $total ) * 100 );
+                wssp_progress_update( $percent, $processed, $total, 'Mengimpor kategori...' );
+            }
         }
         return array( 'created' => $created, 'updated' => $updated );
     }
@@ -72,6 +83,11 @@ class WSSP_Importer {
 
         $created = 0;
         $updated = 0;
+        $total   = is_array( $posts ) ? count( $posts ) : 0;
+        $processed = 0;
+        if ( function_exists( 'wssp_progress_update' ) ) {
+            wssp_progress_update( 0, 0, $total, 'Memulai import...' );
+        }
 
         foreach ( $posts as $p ) {
             $remote_id = isset( $p['id'] ) ? intval( $p['id'] ) : 0;
@@ -80,8 +96,28 @@ class WSSP_Importer {
             }
 
             $existing = $this->find_local_post_by_remote_id( $remote_id );
-            $title = isset( $p['title']['rendered'] ) ? wp_strip_all_tags( $p['title']['rendered'] ) : ( isset( $p['slug'] ) ? $p['slug'] : 'Tanpa Judul' );
-            $content = isset( $p['content']['rendered'] ) ? $p['content']['rendered'] : '';
+            // Title bisa berupa string (endpoint kustom) atau array (WP REST)
+            if ( isset( $p['title'] ) ) {
+                if ( is_array( $p['title'] ) ) {
+                    $title = isset( $p['title']['rendered'] ) ? wp_strip_all_tags( $p['title']['rendered'] ) : 'Tanpa Judul';
+                } else {
+                    $title = wp_strip_all_tags( $p['title'] );
+                }
+            } else {
+                $title = isset( $p['slug'] ) ? $p['slug'] : 'Tanpa Judul';
+            }
+
+            // Content bisa berupa string (endpoint kustom) atau array (WP REST)
+            if ( isset( $p['content'] ) ) {
+                if ( is_array( $p['content'] ) ) {
+                    $content = isset( $p['content']['rendered'] ) ? $p['content']['rendered'] : '';
+                } else {
+                    $content = $p['content'];
+                }
+            } else {
+                $content = '';
+            }
+
             $excerpt = isset( $p['excerpt']['rendered'] ) ? $p['excerpt']['rendered'] : '';
 
             $postarr = array(
@@ -129,6 +165,28 @@ class WSSP_Importer {
             $img_url = WSSP_Client::extract_featured_image_url( $p );
             if ( $img_url ) {
                 $this->set_featured_image_from_url( $post_id, $img_url );
+            }
+
+            // Simpan meta tambahan jika tersedia
+            if ( isset( $p['url_live_preview'] ) && is_string( $p['url_live_preview'] ) ) {
+                update_post_meta( $post_id, '_wssp_url_live_preview', esc_url_raw( trim( $p['url_live_preview'] ) ) );
+            }
+            if ( isset( $p['last_modified'] ) && is_string( $p['last_modified'] ) ) {
+                update_post_meta( $post_id, '_wssp_remote_last_modified', sanitize_text_field( $p['last_modified'] ) );
+            }
+            if ( isset( $p['thumbnail_url'] ) && is_string( $p['thumbnail_url'] ) ) {
+                update_post_meta( $post_id, '_wssp_thumbnail_url', esc_url_raw( trim( $p['thumbnail_url'] ) ) );
+            }
+            if ( isset( $p['screenshot'] ) && is_string( $p['screenshot'] ) ) {
+                $clean_screenshot = trim( $p['screenshot'], " \t\n\r\0\x0B`" );
+                update_post_meta( $post_id, '_wssp_screenshot_url', esc_url_raw( $clean_screenshot ) );
+            }
+
+            // Update progres
+            $processed++;
+            if ( $total > 0 && function_exists( 'wssp_progress_update' ) ) {
+                $percent = (int) floor( ( $processed / $total ) * 100 );
+                wssp_progress_update( $percent, $processed, $total, 'Mengimpor portofolio...' );
             }
         }
 

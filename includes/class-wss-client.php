@@ -107,14 +107,10 @@ class WSSP_Client {
             $per_page = intval( get_option( WSSP_PER_PAGE_OPTION, 12 ) );
             if ( $per_page < 1 ) { $per_page = 1; }
             if ( $per_page > 100 ) { $per_page = 100; }
+            // Gunakan query minimal karena endpoint mengembalikan field kustom (title, content, jenis, thumbnail_url, dll)
             $query = array(
                 'per_page' => $per_page,
                 'page'     => $page,
-                '_embed'   => 1,
-                '_fields'  => 'id,slug,title,excerpt,content,featured_media,_embedded',
-                'orderby'  => 'date',
-                'order'    => 'desc',
-                'status'   => 'publish',
             );
             if ( ! empty( $modified_after ) ) {
                 // ISO8601 format expected
@@ -139,6 +135,13 @@ class WSSP_Client {
      * Extract featured image URL from embedded response
      */
     public static function extract_featured_image_url( $item ) {
+        // Gunakan hanya 'screenshot' untuk featured image sesuai preferensi
+        if ( ! empty( $item['screenshot'] ) && is_string( $item['screenshot'] ) ) {
+            // Bersihkan backtick dan whitespace di sekitar URL
+            $url = trim( $item['screenshot'], " \t\n\r\0\x0B`" );
+            return $url;
+        }
+        // Fallback ke pola WP _embedded jika tersedia
         if ( isset( $item['_embedded']['wp:featuredmedia'][0]['source_url'] ) ) {
             return $item['_embedded']['wp:featuredmedia'][0]['source_url'];
         }
@@ -150,7 +153,20 @@ class WSSP_Client {
      */
     public static function extract_jenis_web_slugs( $item ) {
         $slugs = array();
-        if ( isset( $item['_embedded']['wp:term'] ) && is_array( $item['_embedded']['wp:term'] ) ) {
+        // Endpoint kustom mengirim 'jenis' sebagai string atau array
+        if ( isset( $item['jenis'] ) ) {
+            if ( is_string( $item['jenis'] ) ) {
+                $slugs[] = sanitize_title( $item['jenis'] );
+            } elseif ( is_array( $item['jenis'] ) ) {
+                foreach ( $item['jenis'] as $j ) {
+                    if ( is_string( $j ) && $j !== '' ) {
+                        $slugs[] = sanitize_title( $j );
+                    }
+                }
+            }
+        }
+        // Fallback ke pola WP _embedded
+        if ( empty( $slugs ) && isset( $item['_embedded']['wp:term'] ) && is_array( $item['_embedded']['wp:term'] ) ) {
             foreach ( $item['_embedded']['wp:term'] as $term_group ) {
                 foreach ( $term_group as $term ) {
                     if ( isset( $term['taxonomy'] ) && $term['taxonomy'] === 'jenis-web' && isset( $term['slug'] ) ) {

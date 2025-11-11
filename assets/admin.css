@@ -1,0 +1,53 @@
+/* Overlay penuh layar untuk progres import */
+#wssp-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000; /* di atas admin bar */
+}
+
+#wssp-overlay.active {
+  display: flex;
+}
+
+.wssp-overlay__content {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px 24px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.wssp-overlay__text {
+  font-size: 14px;
+}
+
+/* Spinner animasi */
+.wssp-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wssp-progress__bar {
+  width: 220px;
+  height: 8px;
+  background: #e5e5e5;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.wssp-progress__fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: #2271b1;
+}
+.wssp-progress__label {
+  font-size: 13px;
+  color: #555;
+  text-align: right;
+}

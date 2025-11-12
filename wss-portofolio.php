@@ -510,8 +510,9 @@ register_deactivation_hook( __FILE__, 'wssp_deactivate' );
  */
 function wssp_live_preview_template_loader( $template ) {
     if ( is_singular( 'portofolio' ) ) {
-        $live_endpoint = get_query_var( 'live', '' );
-        if ( $live_endpoint !== '' ) {
+        // Deteksi endpoint 'live' lebih robust: bernilai selain false ketika endpoint cocok
+        $live_endpoint = get_query_var( 'live', false );
+        if ( $live_endpoint !== false ) {
             $plugin_template = plugin_dir_path( __FILE__ ) . 'templates/preview-portofolio.php';
             if ( file_exists( $plugin_template ) ) {
                 return $plugin_template;

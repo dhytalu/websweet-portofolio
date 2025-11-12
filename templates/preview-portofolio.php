@@ -53,7 +53,7 @@ $live_url = get_post_meta( get_the_ID(), '_wssp_url_live_preview', true );
         gap: 6px;
       }
       .wssp-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.3); }
-      .wssp-btn-primary { background: #2563eb; border-color: #2563eb; }
+      .wssp-btn-primary { background: #2563eb; border-color: #2563eb; min-width: 100px; }
       .wssp-btn-primary:hover { background: #1e40af; border-color: #1e40af; }
       .wssp-embed {
         height: 100%;

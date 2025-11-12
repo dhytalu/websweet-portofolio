@@ -27,6 +27,11 @@ define( 'WSSP_WHATSAPP_TEMPLATE_OPTION', 'wssp_whatsapp_template' );
 
 require_once WSSP_PLUGIN_PATH . 'includes/class-wss-client.php';
 require_once WSSP_PLUGIN_PATH . 'includes/class-wss-importer.php';
+// Struktur modular
+require_once WSSP_PLUGIN_PATH . 'includes/endpoints.php';
+require_once WSSP_PLUGIN_PATH . 'includes/functions.php';
+require_once WSSP_PLUGIN_PATH . 'includes/enqueue.php';
+require_once WSSP_PLUGIN_PATH . 'includes/shortcodes.php';
 
 /**
  * Register CPT: portofolio
@@ -494,38 +499,10 @@ function wssp_archive_template( $archive ) {
 }
 add_filter( 'archive_template', 'wssp_archive_template' );
 
-/**
- * Enqueue Bootstrap CSS pada frontend untuk halaman Portofolio
- */
-function wssp_frontend_enqueue() {
-    if ( is_singular( 'portofolio' ) || is_post_type_archive( 'portofolio' ) ) {
-        wp_enqueue_style(
-            'wssp-bootstrap',
-            'https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css',
-            array(),
-            '5.3.2'
-        );
-    }
-}
-add_action( 'wp_enqueue_scripts', 'wssp_frontend_enqueue' );
+// Enqueue dipindahkan ke includes/enqueue.php
 
-/**
- * Endpoint preview: /portofolio/{slug}/live/
- */
-function wssp_register_live_endpoint() {
-    add_rewrite_endpoint( 'live', EP_PERMALINK );
-}
-add_action( 'init', 'wssp_register_live_endpoint' );
-
-function wssp_activate() {
-    wssp_register_live_endpoint();
-    flush_rewrite_rules();
-}
+// Aktivasi/deaktivasi tetap didaftarkan di file utama
 register_activation_hook( __FILE__, 'wssp_activate' );
-
-function wssp_deactivate() {
-    flush_rewrite_rules();
-}
 register_deactivation_hook( __FILE__, 'wssp_deactivate' );
 
 /**
@@ -545,90 +522,5 @@ function wssp_live_preview_template_loader( $template ) {
 }
 add_filter( 'template_include', 'wssp_live_preview_template_loader' );
 
-/**
- * Shortcodes: Live Preview & Order WhatsApp
- */
-function wssp_register_shortcodes() {
-    add_shortcode( 'wssp_live_preview', 'wssp_shortcode_live_preview' );
-    add_shortcode( 'wssp_order_whatsapp', 'wssp_shortcode_order_whatsapp' );
-}
-add_action( 'init', 'wssp_register_shortcodes' );
-
-function wssp_shortcode_live_preview( $atts = array() ) {
-    $atts = shortcode_atts( array(
-        'post_id' => get_the_ID(),
-        'text'    => 'Live Preview',
-        'class'   => '',
-        'target'  => '_blank',
-        'icon'    => '1',
-        'icon_class' => 'fa fa-eye me-2',
-        'embed'   => '1',
-    ), $atts );
-    $post_id = intval( $atts['post_id'] );
-    if ( ! $post_id ) { return ''; }
-    $url = get_post_meta( $post_id, '_wssp_url_live_preview', true );
-    if ( empty( $url ) ) { return ''; }
-    $classes = trim( 'btn btn-primary ' . ( $atts['class'] ? $atts['class'] : '' ) );
-    $icon_html = ( $atts['icon'] && $atts['icon'] !== '0' ) ? '<i class="' . esc_attr( $atts['icon_class'] ) . '"></i>' : '';
-    // Jika embed=1, arahkan ke endpoint internal /live/, bukan ke URL eksternal langsung
-    $href = ($atts['embed'] && $atts['embed'] !== '0')
-      ? trailingslashit( get_permalink( $post_id ) ) . 'live/'
-      : $url;
-    $html = sprintf(
-        '<a class="%s" href="%s" target="%s" rel="noopener">%s%s</a>',
-        esc_attr( $classes ),
-        esc_url( $href ),
-        esc_attr( $atts['target'] ),
-        $icon_html,
-        esc_html( $atts['text'] )
-    );
-    return $html;
-}
-
-function wssp_shortcode_order_whatsapp( $atts = array() ) {
-    $atts = shortcode_atts( array(
-        'post_id' => get_the_ID(),
-        'text'    => 'Order',
-        'class'   => '',
-        'target'  => '_blank',
-        'icon'    => '1',
-        'icon_class' => 'fa fa-whatsapp me-2',
-    ), $atts );
-    $post_id = intval( $atts['post_id'] );
-    if ( ! $post_id ) { return ''; }
-    if ( ! function_exists( 'wssp_get_whatsapp_order_url' ) ) { return ''; }
-    $url = wssp_get_whatsapp_order_url( $post_id );
-    if ( empty( $url ) ) { return ''; }
-    $classes = trim( 'btn btn-success ' . ( $atts['class'] ? $atts['class'] : '' ) );
-    $icon_html = ( $atts['icon'] && $atts['icon'] !== '0' ) ? '<i class="' . esc_attr( $atts['icon_class'] ) . '"></i>' : '';
-    $html = sprintf(
-        '<a class="%s" href="%s" target="%s" rel="noopener">%s%s</a>',
-        esc_attr( $classes ),
-        esc_url( $url ),
-        esc_attr( $atts['target'] ),
-        $icon_html,
-        esc_html( $atts['text'] )
-    );
-    return $html;
-}
-/**
- * Bangun URL order WhatsApp untuk post tertentu
- */
-function wssp_get_whatsapp_order_url( $post_id ) {
-    $number = get_option( WSSP_WHATSAPP_NUMBER_OPTION, '' );
-    if ( empty( $number ) ) { return ''; }
-    $title = get_the_title( $post_id );
-    $permalink = get_permalink( $post_id );
-    $live = get_post_meta( $post_id, '_wssp_url_live_preview', true );
-    $template = get_option( WSSP_WHATSAPP_TEMPLATE_OPTION, '' );
-    if ( empty( $template ) ) {
-        $template = "Halo, saya tertarik dengan portofolio {title}.\nLink: {permalink}\nPreview: {live_preview}";
-    }
-    $message = str_replace(
-        array('{title}', '{permalink}', '{live_preview}'),
-        array( $title, $permalink, $live ?: '' ),
-        $template
-    );
-    $url = 'https://wa.me/' . rawurlencode( $number ) . '?text=' . rawurlencode( $message );
-    return $url;
-}
+// Shortcodes dipindahkan ke includes/shortcodes.php
+// Fungsi helper dipindahkan ke includes/functions.php
